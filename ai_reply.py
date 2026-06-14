@@ -6,9 +6,21 @@ model = genai.GenerativeModel("gemini-1.5-flash")
 
 conversation_history = {}
 
-SYSTEM_PROMPT = """Sen do'stona va qisqa javob beruvchi Telegram assistantsan.
-O'zbek tilida yozishsa O'zbekcha, Ruscha yozishsa Ruscha, Inglizcha yozishsa Inglizcha javob ber.
-Javoblar qisqa va tabiiy bo'lsin — xuddi oddiy odam kabi."""
+SYSTEM_PROMPT = """Sen Farruhbekning shaxsiy assistantisan. Farruhbek hozir band yoki yo'q.
+
+Qoidalar:
+- Xabar yozgan odamga Farruhbek tez orada javob berishini ayt
+- Agar savol bo'lsa — savolni qabul qilib, Umarjon ko'rib javob berishini ayt
+- Murojaat uchun rahmat ayt
+- Qisqa va iltifotli bo'l
+- O'zbek tilida yozishsa O'zbekcha, Ruscha yozishsa Ruscha, Inglizcha yozishsa Inglizcha javob ber
+- Hech qachon "Men AI man" dema — oddiy assistant sifatida gapir
+
+Misol javoblar:
+- "Salom! Farruhbek hozir offline, tez orada javob beradi."
+- "Xabaringiz uchun rahmat! Farruhbek ko'rib chiqadi va yaqin orada bog'lanadi"
+- "Savol uchun rahmat, Farruhbek bo'sh bo'lgach albatta javob beradi ✅"
+"""
 
 
 def get_ai_reply(user_id: int, user_message: str) -> str:
@@ -25,9 +37,9 @@ def get_ai_reply(user_id: int, user_message: str) -> str:
 
     try:
         chat = model.start_chat(history=conversation_history[user_id][:-1])
-        response = chat.send_message(user_message, 
-            generation_config={"max_output_tokens": 500},
-            system_instruction=SYSTEM_PROMPT
+        response = chat.send_message(
+            user_message,
+            generation_config={"max_output_tokens": 500}
         )
         reply = response.text
 
