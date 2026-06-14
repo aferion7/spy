@@ -1,0 +1,5 @@
+telethon
+pyTelegramBotAPI
+anthropic
+python-dotenv
+flask
