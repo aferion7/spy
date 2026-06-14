@@ -1,16 +1,19 @@
 import asyncio
+import os
+import base64
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 from telethon.tl.types import MessageMediaPhoto, User
 import telebot
 from datetime import datetime
 
-from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID, SESSION_NAME
+from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID, SESSION_STRING
 from storage import save_message, get_message, delete_from_cache
 from ai_reply import get_ai_reply, clear_history
 from keep_alive import keep_alive
 
 bot = telebot.TeleBot(BOT_TOKEN)
-client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
+client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
 MY_ID = None
 
 
