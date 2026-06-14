@@ -116,7 +116,7 @@ def on_start(message):
 
     bot.send_message(
         message.chat.id,
-        f"👋 <b>Hello there! {message.from_user.first_name}!</b>\n\n"
+        f"👋 <b>Salom, {message.from_user.first_name}!</b>\n\n"
         f"🤖 Bu bot sizning Telegram profilingizga ulanib, quyidagi imkoniyatlarni beradi:\n\n"
         f"🗑 <b>O'chirilgan xabarlar</b> — kimdir xabar o'chirsa, siz ko'rasiz\n"
         f"✏️ <b>Tahrirlangan xabarlar</b> — eski va yangi versiyasini ko'rasiz\n"
@@ -144,7 +144,7 @@ def on_check_sub(call):
         bot.answer_callback_query(call.id, "❌ Siz hali obuna bo'lmadingiz!", show_alert=True)
 
 
-# ── Oddiy xabarlar ───────────────────────────────────────────────────────────
+# ── Oddiy xabarlar (saqlash, AI yo'q) ───────────────────────────────────────
 
 @bot.message_handler(content_types=[
     'text', 'photo', 'video', 'audio', 'voice',
@@ -158,10 +158,6 @@ def on_message(message):
         return
 
     save_any_message(message)
-
-    if message.chat.type == "private" and message.text:
-        reply = get_ai_reply(message.chat.id, message.text)
-        bot.send_message(message.chat.id, reply)
 
 
 # ── Tahrirlangan xabarlar ────────────────────────────────────────────────────
@@ -197,7 +193,7 @@ def on_edited(message):
         store(chat_id, message.message_id, old)
 
 
-# ── Business xabarlar ────────────────────────────────────────────────────────
+# ── Business xabarlar (faqat OWNER uchun AI) ────────────────────────────────
 
 @bot.business_message_handler(content_types=[
     'text', 'photo', 'video', 'audio', 'voice',
@@ -207,12 +203,17 @@ def on_business_message(message):
     save_any_message(message)
 
     if message.text:
-        reply = get_ai_reply(message.chat.id, message.text)
-        bot.send_message(
-            message.chat.id,
-            reply,
-            business_connection_id=message.business_connection_id
-        )
+        try:
+            connection = bot.get_business_connection(message.business_connection_id)
+            if connection.user.id == OWNER_ID:
+                reply = get_ai_reply(message.chat.id, message.text)
+                bot.send_message(
+                    message.chat.id,
+                    reply,
+                    business_connection_id=message.business_connection_id
+                )
+        except Exception as e:
+            print(f"Business connection xatolik: {e}")
 
 
 # ── Business tahrirlangan ────────────────────────────────────────────────────
