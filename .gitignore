@@ -1,0 +1,5 @@
+.env
+spy_session.session
+spy_session.session-journal
+__pycache__/
+*.pyc
