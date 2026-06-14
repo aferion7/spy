@@ -1,6 +1,8 @@
-import anthropic
+import google.generativeai as genai
+import os
 
-client = anthropic.Anthropic()
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 conversation_history = {}
 
@@ -15,23 +17,23 @@ def get_ai_reply(user_id: int, user_message: str) -> str:
 
     conversation_history[user_id].append({
         "role": "user",
-        "content": user_message
+        "parts": [user_message]
     })
 
     if len(conversation_history[user_id]) > 20:
         conversation_history[user_id] = conversation_history[user_id][-20:]
 
     try:
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=500,
-            system=SYSTEM_PROMPT,
-            messages=conversation_history[user_id]
+        chat = model.start_chat(history=conversation_history[user_id][:-1])
+        response = chat.send_message(user_message, 
+            generation_config={"max_output_tokens": 500},
+            system_instruction=SYSTEM_PROMPT
         )
-        reply = response.content[0].text
+        reply = response.text
+
         conversation_history[user_id].append({
-            "role": "assistant",
-            "content": reply
+            "role": "model",
+            "parts": [reply]
         })
         return reply
     except Exception as e:
