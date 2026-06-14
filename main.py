@@ -1,103 +1,51 @@
 import asyncio
-import os
-import base64
-from telethon import TelegramClient, events
-from telethon.sessions import StringSession
-from telethon.tl.types import MessageMediaPhoto, User
-import telebot
+from threading import Thread
 from datetime import datetime
 
+import telebot
+from telebot import types
+
 from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID, SESSION_STRING
-from storage import save_message, get_message, delete_from_cache
 from ai_reply import get_ai_reply, clear_history
 from keep_alive import keep_alive
 
 bot = telebot.TeleBot(BOT_TOKEN)
-client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
-MY_ID = None
 
+# ── O'chirilgan xabarlarni ushlash ──────────────────────────────────────────
 
-def format_sender(msg):
-    if msg.sender:
-        s = msg.sender
-        name = f"{getattr(s, 'first_name', '') or ''} {getattr(s, 'last_name', '') or ''}".strip()
-        username = f"@{s.username}" if getattr(s, 'username', None) else ""
-        return f"{name} {username}".strip()
-    return "Noma'lum"
-
-
-def get_chat_title(chat):
-    if hasattr(chat, 'title'):
-        return chat.title
-    elif hasattr(chat, 'first_name'):
-        return f"{chat.first_name or ''} {chat.last_name or ''}".strip()
-    return "Noma'lum chat"
-
-
-# ── Yangi xabarlarni saqlash va AI javob ────────────────────────────────────
-
-@client.on(events.NewMessage(incoming=True))
-async def on_new_message(event):
-    global MY_ID
-    msg = event.message
-    chat_id = event.chat_id
-    chat = await event.get_chat()
-
-    # Cachega saqlash
+@bot.message_handler(content_types=['text', 'photo', 'video', 'document', 'sticker', 'voice'])
+def save_message(message):
+    """Barcha xabarlarni xotirada saqlash"""
+    from storage import save_message as store
     data = {
-        "text": msg.text or "",
-        "from": format_sender(msg),
-        "date": msg.date.strftime("%Y-%m-%d %H:%M:%S"),
-        "has_media": msg.media is not None,
+        "text": message.text or message.caption or "",
+        "from": f"{message.from_user.first_name or ''} @{message.from_user.username or ''}".strip(),
+        "date": datetime.fromtimestamp(message.date).strftime("%Y-%m-%d %H:%M:%S"),
+        "chat_title": message.chat.title or message.chat.first_name or "Private",
         "media": None,
-        "chat_title": get_chat_title(chat),
+        "media_type": None,
     }
+    store(message.chat.id, message.message_id, data)
 
-    if msg.media:
-        try:
-            media_bytes = await client.download_media(msg.media, bytes)
-            data["media"] = media_bytes
-            data["media_type"] = (
-                "photo" if isinstance(msg.media, MessageMediaPhoto) else "document"
-            )
-        except Exception:
-            data["media_type"] = "unknown"
-
-    save_message(chat_id, msg.id, data)
-
-    # AI javob — faqat private chat, o'ziga emas
-    is_private = isinstance(chat, User)
-    is_not_me = chat_id != MY_ID
-    has_text = bool(msg.text and msg.text.strip())
-
-    if is_private and is_not_me and has_text:
-        async with client.action(chat_id, "typing"):
-            reply_text = get_ai_reply(chat_id, msg.text)
-        await client.send_message(chat_id, reply_text)
-
-
-# ── /reset komandasi ─────────────────────────────────────────────────────────
-
-@client.on(events.NewMessage(pattern="/reset", incoming=True))
-async def on_reset(event):
-    if isinstance(await event.get_chat(), User):
-        clear_history(event.chat_id)
-        await event.reply("✅ Suhbat tarixi tozalandi.")
+    # AI javob — faqat private chat
+    if message.chat.type == "private" and message.text:
+        reply = get_ai_reply(message.chat.id, message.text)
+        bot.send_message(message.chat.id, reply)
 
 
 # ── Tahrirlangan xabarlar ────────────────────────────────────────────────────
 
-@client.on(events.MessageEdited)
-async def on_edited(event):
-    msg = event.message
-    chat_id = event.chat_id
-    old = get_message(chat_id, msg.id)
+@bot.edited_message_handler(content_types=['text', 'photo', 'video', 'document'])
+def on_edited(message):
+    from storage import get_message, save_message as store
+    chat_id = message.chat.id
+    old = get_message(chat_id, message.message_id)
 
     old_text = old["text"] if old else "_(saqlanmagan)_"
-    new_text = msg.text or "_(matn yo'q)_"
-    sender = format_sender(msg)
-    chat_title = get_chat_title(await event.get_chat())
+    new_text = message.text or message.caption or "_(matn yo'q)_"
     time_now = datetime.now().strftime("%H:%M:%S")
+    sender = f"{message.from_user.first_name or ''} @{message.from_user.username or ''}".strip()
+    chat_title = message.chat.title or message.chat.first_name or "Private"
 
     report = (
         f"✏️ <b>Xabar tahrirlandi</b>\n"
@@ -107,62 +55,104 @@ async def on_edited(event):
         f"📌 <b>Eski matn:</b>\n{old_text}\n\n"
         f"🔄 <b>Yangi matn:</b>\n{new_text}"
     )
-
     bot.send_message(OWNER_ID, report, parse_mode="HTML")
 
     if old:
         old["text"] = new_text
-        save_message(chat_id, msg.id, old)
+        store(chat_id, message.message_id, old)
 
 
-# ── O'chirilgan xabarlar ─────────────────────────────────────────────────────
+# ── Secretary Mode — business xabarlar ──────────────────────────────────────
 
-@client.on(events.MessageDeleted)
-async def on_deleted(event):
-    chat_id = event.chat_id
+@bot.business_message_handler(content_types=['text'])
+def on_business_message(message):
+    from storage import save_message as store
+    data = {
+        "text": message.text or "",
+        "from": f"{message.from_user.first_name or ''} @{message.from_user.username or ''}".strip(),
+        "date": datetime.fromtimestamp(message.date).strftime("%Y-%m-%d %H:%M:%S"),
+        "chat_title": message.chat.title or message.chat.first_name or "Private",
+        "media": None,
+        "media_type": None,
+    }
+    store(message.chat.id, message.message_id, data)
+
+    # AI javob
+    reply = get_ai_reply(message.chat.id, message.text)
+    bot.send_message(
+        message.chat.id,
+        reply,
+        business_connection_id=message.business_connection_id
+    )
+
+
+@bot.edited_business_message_handler(content_types=['text'])
+def on_business_edited(message):
+    from storage import get_message, save_message as store
+    chat_id = message.chat.id
+    old = get_message(chat_id, message.message_id)
+
+    old_text = old["text"] if old else "_(saqlanmagan)_"
+    new_text = message.text or "_(matn yo'q)_"
+    time_now = datetime.now().strftime("%H:%M:%S")
+    sender = f"{message.from_user.first_name or ''} @{message.from_user.username or ''}".strip()
+
+    report = (
+        f"✏️ <b>Business xabar tahrirlandi</b>\n"
+        f"👤 <b>Kim:</b> {sender}\n"
+        f"🕐 <b>Vaqt:</b> {time_now}\n\n"
+        f"📌 <b>Eski matn:</b>\n{old_text}\n\n"
+        f"🔄 <b>Yangi matn:</b>\n{new_text}"
+    )
+    bot.send_message(OWNER_ID, report, parse_mode="HTML")
+
+    if old:
+        old["text"] = new_text
+        store(chat_id, message.message_id, old)
+
+
+@bot.deleted_business_messages_handler()
+def on_business_deleted(update):
+    from storage import delete_from_cache
     time_now = datetime.now().strftime("%H:%M:%S")
 
-    for msg_id in event.deleted_ids:
-        old = delete_from_cache(chat_id, msg_id)
+    for msg_id in update.message_ids:
+        old = delete_from_cache(update.chat.id, msg_id)
         if not old:
             continue
 
         report = (
-            f"🗑 <b>Xabar o'chirildi</b>\n"
+            f"🗑 <b>Business xabar o'chirildi</b>\n"
             f"👤 <b>Kim:</b> {old['from']}\n"
             f"💬 <b>Chat:</b> {old.get('chat_title', '?')}\n"
             f"📅 <b>Yuborilgan:</b> {old['date']}\n"
             f"🕐 <b>O'chirilgan:</b> {time_now}\n\n"
         )
-
         if old["text"]:
             report += f"📝 <b>Matn:</b>\n{old['text']}"
-
-        if old.get("media"):
-            try:
-                if old.get("media_type") == "photo":
-                    bot.send_photo(OWNER_ID, old["media"], caption=report, parse_mode="HTML")
-                else:
-                    bot.send_document(OWNER_ID, old["media"], caption=report, parse_mode="HTML")
-                continue
-            except Exception:
-                pass
 
         bot.send_message(OWNER_ID, report, parse_mode="HTML")
 
 
+# ── /reset komandasi ─────────────────────────────────────────────────────────
+
+@bot.message_handler(commands=['reset'])
+def on_reset(message):
+    clear_history(message.chat.id)
+    bot.reply_to(message, "✅ Suhbat tarixi tozalandi.")
+
+
 # ── Start ────────────────────────────────────────────────────────────────────
 
-async def main():
-    global MY_ID
+def start_polling():
+    bot.infinity_polling()
+
+def main():
     keep_alive()
-    await client.start()
-    me = await client.get_me()
-    MY_ID = me.id
-    print(f"✅ Bot ishga tushdi! ID: {MY_ID}")
     bot.send_message(OWNER_ID, "✅ <b>Spy bot ishga tushdi!</b>", parse_mode="HTML")
-    await client.run_until_disconnected()
+    print("✅ Bot ishga tushdi!")
+    start_polling()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
