@@ -3,3 +3,4 @@ pyTelegramBotAPI
 anthropic
 python-dotenv
 flask
+google-generativeai
