@@ -1,7 +1,4 @@
-import asyncio
-from threading import Thread
 from datetime import datetime
-
 import telebot
 from telebot import types
 
@@ -11,6 +8,8 @@ from keep_alive import keep_alive
 from storage import save_message as store, get_message, delete_from_cache
 
 bot = telebot.TeleBot(BOT_TOKEN)
+
+CHANNEL = "@umarjonovs"
 
 
 # ── Yordamchi funksiyalar ────────────────────────────────────────────────────
@@ -25,7 +24,6 @@ def get_chat_name(message):
     return message.chat.title or message.chat.first_name or "Private"
 
 def extract_media(message):
-    """Xabardan media turini va file_id ni olish"""
     if message.photo:
         return "photo", message.photo[-1].file_id
     elif message.video:
@@ -43,7 +41,6 @@ def extract_media(message):
     return None, None
 
 def send_media_to_owner(media_type, file_id, caption):
-    """Media turига qarab owner ga yuborish"""
     try:
         if media_type == "photo":
             bot.send_photo(OWNER_ID, file_id, caption=caption, parse_mode="HTML")
@@ -66,9 +63,6 @@ def send_media_to_owner(media_type, file_id, caption):
     except Exception as e:
         bot.send_message(OWNER_ID, f"{caption}\n\n⚠️ Media yuborishda xatolik: {e}", parse_mode="HTML")
 
-
-# ── Xabarlarni saqlash ───────────────────────────────────────────────────────
-
 def save_any_message(message):
     media_type, file_id = extract_media(message)
     data = {
@@ -83,6 +77,74 @@ def save_any_message(message):
     return data
 
 
+# ── Obuna tekshirish ─────────────────────────────────────────────────────────
+
+def is_subscribed(user_id):
+    try:
+        member = bot.get_chat_member(CHANNEL, user_id)
+        return member.status not in ["left", "kicked"]
+    except:
+        return False
+
+def check_sub(message):
+    if not is_subscribed(message.from_user.id):
+        markup = types.InlineKeyboardMarkup()
+        markup.add(
+            types.InlineKeyboardButton("📢 Kanalga obuna bo'lish", url="https://t.me/umarjonovs"),
+            types.InlineKeyboardButton("✅ Obuna bo'ldim", callback_data="check_sub")
+        )
+        bot.send_message(
+            message.chat.id,
+            "⚠️ Botdan foydalanish uchun avval kanalga obuna bo'ling!",
+            reply_markup=markup
+        )
+        return False
+    return True
+
+
+# ── /start ───────────────────────────────────────────────────────────────────
+
+@bot.message_handler(commands=['start'])
+def on_start(message):
+    if not check_sub(message):
+        return
+
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("📢 Kanal", url="https://t.me/umarjonovs"),
+        types.InlineKeyboardButton("🔗 Profilga ulash yo'riqnomasi", url="https://t.me/umarjonovs"),
+    )
+
+    bot.send_message(
+        message.chat.id,
+        f"👋 <b>Hello there! {message.from_user.first_name}!</b>\n\n"
+        f"🤖 Bu bot sizning Telegram profilingizga ulanib, quyidagi imkoniyatlarni beradi:\n\n"
+        f"🗑 <b>O'chirilgan xabarlar</b> — kimdir xabar o'chirsa, siz ko'rasiz\n"
+        f"✏️ <b>Tahrirlangan xabarlar</b> — eski va yangi versiyasini ko'rasiz\n"
+        f"🤖 <b>AI avtomatik javob</b> — siz yo'q paytda sun'iy intellekt javob beradi\n\n"
+        f"⚙️ <b>Profilga ulash tartibi:</b>\n"
+        f"1️⃣ Telegram → <b>Settings</b>\n"
+        f"2️⃣ <b>Telegram Business</b>\n"
+        f"3️⃣ <b>Chat Automation</b>\n"
+        f"4️⃣ Bot username kiriting: <code>@{bot.get_me().username}</code>\n\n"
+        f"✅ Ulangach bot avtomatik ishlaydi!",
+        reply_markup=markup,
+        parse_mode="HTML"
+    )
+
+
+# ── Obuna callback ────────────────────────────────────────────────────────────
+
+@bot.callback_query_handler(func=lambda c: c.data == "check_sub")
+def on_check_sub(call):
+    if is_subscribed(call.from_user.id):
+        bot.answer_callback_query(call.id, "✅ Rahmat! Obuna tasdiqlandi.")
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+        on_start(call.message)
+    else:
+        bot.answer_callback_query(call.id, "❌ Siz hali obuna bo'lmadingiz!", show_alert=True)
+
+
 # ── Oddiy xabarlar ───────────────────────────────────────────────────────────
 
 @bot.message_handler(content_types=[
@@ -90,9 +152,14 @@ def save_any_message(message):
     'document', 'sticker', 'video_note'
 ])
 def on_message(message):
+    if message.text and message.text.startswith('/'):
+        return
+
+    if not check_sub(message):
+        return
+
     save_any_message(message)
 
-    # AI javob — faqat private, faqat text
     if message.chat.type == "private" and message.text:
         reply = get_ai_reply(message.chat.id, message.text)
         bot.send_message(message.chat.id, reply)
@@ -164,7 +231,7 @@ def on_business_edited(message):
     media_type, file_id = extract_media(message)
 
     report = (
-        f"✏️ <b>Business xabar tahrirlandi</b>\n"
+        f"✏️ <b>Xabar tahrirlandi</b>\n"
         f"👤 <b>Kim:</b> {get_sender(message)}\n"
         f"🕐 <b>Vaqt:</b> {time_now}\n\n"
         f"📌 <b>Eski matn:</b>\n{old_text}\n\n"
@@ -223,7 +290,7 @@ def on_reset(message):
 
 def main():
     keep_alive()
-    bot.send_message(OWNER_ID, "✅ <b>Spy bot ishga tushdi!</b>", parse_mode="HTML")
+    bot.send_message(OWNER_ID, "✅ <b>Josus bot ishga tushdi!</b>", parse_mode="HTML")
     print("✅ Bot ishga tushdi!")
     bot.infinity_polling()
 
