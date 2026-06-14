@@ -112,7 +112,6 @@ def on_start(message):
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("📢 Kanal", url="https://t.me/umarjonovs"),
-        types.InlineKeyboardButton("🔗 Profilga ulash yo'riqnomasi", url="https://t.me/umarjonovs"),
     )
 
     bot.send_message(
