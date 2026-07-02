@@ -13,8 +13,12 @@ from keep_alive import keep_alive
 from storage import save_message as store, get_message, delete_from_cache
 
 bot = telebot.TeleBot(BOT_TOKEN)
-user_client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
-
+user_client = None
+if API_ID and API_HASH and SESSION_STRING:
+    try:
+        user_client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
+    except Exception as e:
+        print(f"Userbot ulanmadi: {e}")
 CHANNEL = "@umarjonovs"
 
 
