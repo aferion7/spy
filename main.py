@@ -102,7 +102,7 @@ def handle_disappearing(message, prefix=""):
         f"👤 <b>Kim:</b> {sender}\n"
         f"💬 <b>Chat:</b> {chat_title}\n"
         f"🕐 <b>Vaqt:</b> {time_now}\n"
-        f"📁 <b>Tur:</b> {media_type or 'Noma\\'lum'}"
+        f"📁 <b>Tur:</b> {media_type or 'Nomalum'}"
     )
 
     if file_id:
