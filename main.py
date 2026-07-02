@@ -335,7 +335,7 @@ def on_reset(message):
 
 def main():
     keep_alive()
-    bot.send_message(OWNER_ID, "✅ <b>Spy bot ishga tushdi!</b>", parse_mode="HTML")
+    bot.send_message(OWNER_ID, "✅ <b>Josus bot ishga tushdi!</b>", parse_mode="HTML")
     print("✅ Bot ishga tushdi!")
     bot.infinity_polling()
 
