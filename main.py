@@ -3,7 +3,7 @@ import telebot
 from telebot import types
 
 from config import BOT_TOKEN, OWNER_ID
-from ai_reply import get_ai_reply, clear_history
+from ai_reply import get_ai_reply
 from keep_alive import keep_alive
 from storage import save_message as store, get_message, delete_from_cache
 
@@ -146,7 +146,6 @@ def on_start(message):
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("📢 Kanal", url="https://t.me/umarjonovs"),
-        types.InlineKeyboardButton("🔗 Profilga ulash yo'riqnomasi", url="https://t.me/umarjonovs"),
     )
 
     bot.send_message(
