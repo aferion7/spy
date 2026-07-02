@@ -1,6 +1,6 @@
 pyTelegramBotAPI
 python-dotenv
 flask
-google-generativeai
+groq
 requests
 telethon
