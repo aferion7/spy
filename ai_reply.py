@@ -1,12 +1,11 @@
-import google.generativeai as genai
+from groq import Groq
 import os
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-2.0-flash")
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 conversation_history = {}
 
-SYSTEM_PROMPT = """Sen Farruhbekning shaxsiy assistantisan. Farruhbek hozir band yoki yo'q.
+SYSTEM_PROMPT = """Sen Farruhbekning shaxsiy assistantisan. Umarjon hozir band yoki yo'q.
 
 Qoidalar:
 - Xabar yozgan odamga Farruhbek tez orada javob berishini ayt
@@ -17,9 +16,9 @@ Qoidalar:
 - Hech qachon "Men AI man" dema — oddiy assistant sifatida gapir
 
 Misol javoblar:
-- "Salom! Farruhbek hozir offline, tez orada javob beradi."
+- "Salom! xo'jayinim hozir band, tez orada javob beradi"
 - "Xabaringiz uchun rahmat! Farruhbek ko'rib chiqadi va yaqin orada bog'lanadi"
-- "Savol uchun rahmat, Farruhbek bo'sh bo'lgach albatta javob beradi ✅"
+- "Savol uchun rahmat, U bo'sh bo'lgach albatta javob beradi"
 """
 
 
@@ -29,28 +28,16 @@ def get_ai_reply(user_id: int, user_message: str) -> str:
 
     conversation_history[user_id].append({
         "role": "user",
-        "parts": [user_message]
+        "content": user_message
     })
 
     if len(conversation_history[user_id]) > 20:
         conversation_history[user_id] = conversation_history[user_id][-20:]
 
     try:
-        chat = model.start_chat(history=conversation_history[user_id][:-1])
-        response = chat.send_message(
-            user_message,
-            generation_config={"max_output_tokens": 500}
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            max_tokens=500,
+            messages=[{"role": "system", "content": SYSTEM_PROMPT}] + conversation_history[user_id]
         )
-        reply = response.text
-
-        conversation_history[user_id].append({
-            "role": "model",
-            "parts": [reply]
-        })
-        return reply
-    except Exception as e:
-        return f"Xatolik: {e}"
-
-
-def clear_history(user_id: int):
-    conversation_history.pop(user_id, None)
+        reply = response.choices[0].message.content
