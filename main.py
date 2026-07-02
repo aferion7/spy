@@ -13,16 +13,16 @@ from keep_alive import keep_alive
 from storage import save_message as store, get_message, delete_from_cache
 
 bot = telebot.TeleBot(BOT_TOKEN)
+
 user_client = None
 if API_ID and API_HASH and SESSION_STRING:
     try:
         user_client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
     except Exception as e:
         print(f"Userbot ulanmadi: {e}")
+
 CHANNEL = "@umarjonovs"
 
-
-# ── Yordamchi funksiyalar ────────────────────────────────────────────────────
 
 def get_sender(message):
     u = message.from_user
@@ -30,8 +30,10 @@ def get_sender(message):
     username = f"@{u.username}" if u.username else ""
     return f"{name} {username}".strip()
 
+
 def get_chat_name(message):
     return message.chat.title or message.chat.first_name or "Private"
+
 
 def extract_media(message):
     if message.photo:
@@ -49,6 +51,7 @@ def extract_media(message):
     elif message.video_note:
         return "video_note", message.video_note.file_id
     return None, None
+
 
 def send_media_to_owner(media_type, file_id, caption):
     try:
@@ -71,7 +74,8 @@ def send_media_to_owner(media_type, file_id, caption):
         else:
             bot.send_message(OWNER_ID, caption, parse_mode="HTML")
     except Exception as e:
-        bot.send_message(OWNER_ID, f"{caption}\n\n⚠️ Xatolik: {e}", parse_mode="HTML")
+        bot.send_message(OWNER_ID, caption + "\n\nMedia yuborishda xatolik: " + str(e), parse_mode="HTML")
+
 
 def save_any_message(message):
     media_type, file_id = extract_media(message)
@@ -87,32 +91,29 @@ def save_any_message(message):
     return data
 
 
-# ── Obuna tekshirish ─────────────────────────────────────────────────────────
-
 def is_subscribed(user_id):
     try:
         member = bot.get_chat_member(CHANNEL, user_id)
         return member.status not in ["left", "kicked"]
-    except:
+    except Exception:
         return False
+
 
 def check_sub(message):
     if not is_subscribed(message.from_user.id):
         markup = types.InlineKeyboardMarkup()
         markup.add(
-            types.InlineKeyboardButton("📢 Kanalga obuna bo'lish", url="https://t.me/umarjonovs"),
-            types.InlineKeyboardButton("✅ Obuna bo'ldim", callback_data="check_sub")
+            types.InlineKeyboardButton("Kanalga obuna bolish", url="https://t.me/umarjonovs"),
+            types.InlineKeyboardButton("Obuna boldim", callback_data="check_sub")
         )
         bot.send_message(
             message.chat.id,
-            "⚠️ Botdan foydalanish uchun avval kanalga obuna bo'ling!",
+            "Botdan foydalanish uchun avval kanalga obuna boling!",
             reply_markup=markup
         )
         return False
     return True
 
-
-# ── /start ───────────────────────────────────────────────────────────────────
 
 @bot.message_handler(commands=['start'])
 def on_start(message):
@@ -121,42 +122,37 @@ def on_start(message):
 
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("📢 Kanal", url="https://t.me/umarjonovs"),
-        types.InlineKeyboardButton("🔗 Profilga ulash yo'riqnomasi", url="https://t.me/umarjonovs"),
+        types.InlineKeyboardButton("Kanal", url="https://t.me/umarjonovs"),
     )
 
     bot.send_message(
         message.chat.id,
-        f"👋 <b>Salom, {message.from_user.first_name}!</b>\n\n"
-        f"🤖 Bu bot sizning Telegram profilingizga ulanib, quyidagi imkoniyatlarni beradi:\n\n"
-        f"🗑 <b>O'chirilgan xabarlar</b> — kimdir xabar o'chirsa, siz ko'rasiz\n"
-        f"✏️ <b>Tahrirlangan xabarlar</b> — eski va yangi versiyasini ko'rasiz\n"
-        f"👁 <b>O'chib ketuvchi media</b> — bir marta ko'riladigan rasm/video saqlanadi\n"
-        f"🤖 <b>AI avtomatik javob</b> — siz yo'q paytda sun'iy intellekt javob beradi\n\n"
-        f"⚙️ <b>Profilga ulash tartibi:</b>\n"
-        f"1️⃣ Telegram → <b>Settings</b>\n"
-        f"2️⃣ <b>Telegram Business</b>\n"
-        f"3️⃣ <b>Chat Automation</b>\n"
-        f"4️⃣ Bot username kiriting: <code>@{bot.get_me().username}</code>\n\n"
-        f"✅ Ulangach bot avtomatik ishlaydi!",
+        "<b>Salom, " + message.from_user.first_name + "!</b>\n\n"
+        "Bu bot sizning Telegram profilingizga ulanib, quyidagi imkoniyatlarni beradi:\n\n"
+        "O'chirilgan xabarlar - kimdir xabar o'chirsa, siz ko'rasiz\n"
+        "Tahrirlangan xabarlar - eski va yangi versiyasini ko'rasiz\n"
+        "O'chib ketuvchi media - bir marta ko'riladigan rasm/video saqlanadi\n"
+        "AI avtomatik javob - siz yo'q paytda sun'iy intellekt javob beradi\n\n"
+        "<b>Profilga ulash tartibi:</b>\n"
+        "1. Telegram - Settings\n"
+        "2. Telegram Business\n"
+        "3. Chat Automation\n"
+        "4. Bot username kiriting: <code>@" + bot.get_me().username + "</code>\n\n"
+        "Ulangach bot avtomatik ishlaydi!",
         reply_markup=markup,
         parse_mode="HTML"
     )
 
 
-# ── Obuna callback ────────────────────────────────────────────────────────────
-
 @bot.callback_query_handler(func=lambda c: c.data == "check_sub")
 def on_check_sub(call):
     if is_subscribed(call.from_user.id):
-        bot.answer_callback_query(call.id, "✅ Rahmat! Obuna tasdiqlandi.")
+        bot.answer_callback_query(call.id, "Rahmat! Obuna tasdiqlandi.")
         bot.delete_message(call.message.chat.id, call.message.message_id)
         on_start(call.message)
     else:
-        bot.answer_callback_query(call.id, "❌ Siz hali obuna bo'lmadingiz!", show_alert=True)
+        bot.answer_callback_query(call.id, "Siz hali obuna bolmadingiz!", show_alert=True)
 
-
-# ── Oddiy xabarlar ───────────────────────────────────────────────────────────
 
 @bot.message_handler(content_types=[
     'text', 'photo', 'video', 'audio', 'voice',
@@ -170,27 +166,24 @@ def on_message(message):
     save_any_message(message)
 
 
-# ── Tahrirlangan xabarlar ────────────────────────────────────────────────────
-
 @bot.edited_message_handler(content_types=[
     'text', 'photo', 'video', 'audio', 'voice', 'document'
 ])
 def on_edited(message):
     chat_id = message.chat.id
     old = get_message(chat_id, message.message_id)
-
     old_text = old["text"] if old else "_(saqlanmagan)_"
-    new_text = message.text or message.caption or "_(matn yo'q)_"
+    new_text = message.text or message.caption or "_(matn yoq)_"
     time_now = datetime.now().strftime("%H:%M:%S")
     media_type, file_id = extract_media(message)
 
     report = (
-        f"✏️ <b>Xabar tahrirlandi</b>\n"
-        f"👤 <b>Kim:</b> {get_sender(message)}\n"
-        f"💬 <b>Chat:</b> {get_chat_name(message)}\n"
-        f"🕐 <b>Vaqt:</b> {time_now}\n\n"
-        f"📌 <b>Eski matn:</b>\n{old_text}\n\n"
-        f"🔄 <b>Yangi matn:</b>\n{new_text}"
+        "<b>Xabar tahrirlandi</b>\n"
+        "<b>Kim:</b> " + get_sender(message) + "\n"
+        "<b>Chat:</b> " + get_chat_name(message) + "\n"
+        "<b>Vaqt:</b> " + time_now + "\n\n"
+        "<b>Eski matn:</b>\n" + old_text + "\n\n"
+        "<b>Yangi matn:</b>\n" + new_text
     )
 
     if file_id:
@@ -202,8 +195,6 @@ def on_edited(message):
         old["text"] = new_text
         store(chat_id, message.message_id, old)
 
-
-# ── Business xabarlar ────────────────────────────────────────────────────────
 
 @bot.business_message_handler(content_types=[
     'text', 'photo', 'video', 'audio', 'voice',
@@ -223,10 +214,8 @@ def on_business_message(message):
                     business_connection_id=message.business_connection_id
                 )
         except Exception as e:
-            print(f"Business connection xatolik: {e}")
+            print("Business connection xatolik: " + str(e))
 
-
-# ── Business tahrirlangan ────────────────────────────────────────────────────
 
 @bot.edited_business_message_handler(content_types=[
     'text', 'photo', 'video', 'audio', 'voice', 'document'
@@ -234,18 +223,17 @@ def on_business_message(message):
 def on_business_edited(message):
     chat_id = message.chat.id
     old = get_message(chat_id, message.message_id)
-
     old_text = old["text"] if old else "_(saqlanmagan)_"
-    new_text = message.text or message.caption or "_(matn yo'q)_"
+    new_text = message.text or message.caption or "_(matn yoq)_"
     time_now = datetime.now().strftime("%H:%M:%S")
     media_type, file_id = extract_media(message)
 
     report = (
-        f"✏️ <b>Business xabar tahrirlandi</b>\n"
-        f"👤 <b>Kim:</b> {get_sender(message)}\n"
-        f"🕐 <b>Vaqt:</b> {time_now}\n\n"
-        f"📌 <b>Eski matn:</b>\n{old_text}\n\n"
-        f"🔄 <b>Yangi matn:</b>\n{new_text}"
+        "<b>Business xabar tahrirlandi</b>\n"
+        "<b>Kim:</b> " + get_sender(message) + "\n"
+        "<b>Vaqt:</b> " + time_now + "\n\n"
+        "<b>Eski matn:</b>\n" + old_text + "\n\n"
+        "<b>Yangi matn:</b>\n" + new_text
     )
 
     if file_id:
@@ -258,8 +246,6 @@ def on_business_edited(message):
         store(chat_id, message.message_id, old)
 
 
-# ── Business o'chirilgan ─────────────────────────────────────────────────────
-
 @bot.deleted_business_messages_handler()
 def on_business_deleted(update):
     time_now = datetime.now().strftime("%H:%M:%S")
@@ -270,14 +256,14 @@ def on_business_deleted(update):
             continue
 
         report = (
-            f"🗑 <b>Xabar o'chirildi</b>\n"
-            f"👤 <b>Kim:</b> {old['from']}\n"
-            f"💬 <b>Chat:</b> {old.get('chat_title', '?')}\n"
-            f"📅 <b>Yuborilgan:</b> {old['date']}\n"
-            f"🕐 <b>O'chirilgan:</b> {time_now}\n\n"
+            "<b>Xabar ochirildi</b>\n"
+            "<b>Kim:</b> " + old['from'] + "\n"
+            "<b>Chat:</b> " + old.get('chat_title', '?') + "\n"
+            "<b>Yuborilgan:</b> " + old['date'] + "\n"
+            "<b>Ochirilgan:</b> " + time_now + "\n\n"
         )
         if old["text"]:
-            report += f"📝 <b>Matn:</b>\n{old['text']}"
+            report += "<b>Matn:</b>\n" + old["text"]
 
         if old.get("file_id") and old.get("media_type") != "sticker":
             send_media_to_owner(old["media_type"], old["file_id"], report)
@@ -288,47 +274,37 @@ def on_business_deleted(update):
             bot.send_message(OWNER_ID, report, parse_mode="HTML")
 
 
-# ── /reset ───────────────────────────────────────────────────────────────────
-
 @bot.message_handler(commands=['reset'])
 def on_reset(message):
     clear_history(message.chat.id)
-    bot.reply_to(message, "✅ Suhbat tarixi tozalandi.")
+    bot.reply_to(message, "Suhbat tarixi tozalandi.")
 
-
-# ── Telethon — o'chib ketuvchi media ────────────────────────────────────────
 
 async def start_userbot():
     await user_client.start()
-    print("✅ Userbot ulandi!")
+    print("Userbot ulandi!")
 
     @user_client.on(events.NewMessage(incoming=True))
     async def on_user_message(event):
         msg = event.message
-
-        # O'chib ketuvchi media tekshirish
         if not msg.media:
             return
-
         ttl = getattr(msg.media, 'ttl_seconds', None)
         if not ttl:
             return
-
-        # Mediani yuklab olish
         try:
             sender = await event.get_sender()
             chat = await event.get_chat()
-
             sender_name = f"{getattr(sender, 'first_name', '') or ''} {getattr(sender, 'last_name', '') or ''}".strip()
             username = f"@{sender.username}" if getattr(sender, 'username', None) else ""
             chat_title = getattr(chat, 'title', None) or getattr(chat, 'first_name', None) or "Private"
             time_now = datetime.now().strftime("%H:%M:%S")
 
             caption = (
-                f"👁 <b>O'chib ketuvchi media!</b>\n"
-                f"👤 <b>Kim:</b> {sender_name} {username}\n"
-                f"💬 <b>Chat:</b> {chat_title}\n"
-                f"🕐 <b>Vaqt:</b> {time_now}"
+                "<b>Ochib ketuvchi media!</b>\n"
+                "<b>Kim:</b> " + sender_name + " " + username + "\n"
+                "<b>Chat:</b> " + chat_title + "\n"
+                "<b>Vaqt:</b> " + time_now
             )
 
             media_bytes = await user_client.download_media(msg.media, bytes)
@@ -339,31 +315,30 @@ async def start_userbot():
                 bot.send_document(OWNER_ID, media_bytes, caption=caption, parse_mode="HTML")
 
         except Exception as e:
-            bot.send_message(OWNER_ID, f"👁 O'chib ketuvchi media keldi, yuklab bo'lmadi: {e}")
+            bot.send_message(OWNER_ID, "Ochib ketuvchi media keldi, yuklab bolmadi: " + str(e))
 
     await user_client.run_until_disconnected()
 
 
 def run_userbot():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(start_userbot())
-
-
-# ── Start ────────────────────────────────────────────────────────────────────
-
-def main():
-    keep_alive()
-
-    # Userbot alohida threadda
-    t = Thread(target=run_userbot)
-    def run_userbot():
     if not user_client:
-        print("Userbot o'chirilgan — SESSION_STRING yo'q")
+        print("Userbot ochirilgan - SESSION_STRING yoq")
         return
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(start_userbot())
+
+
+def main():
+    keep_alive()
+
+    t = Thread(target=run_userbot)
+    t.daemon = True
+    t.start()
+
+    bot.send_message(OWNER_ID, "<b>Josus bot ishga tushdi!</b>", parse_mode="HTML")
+    print("Bot ishga tushdi!")
+    bot.infinity_polling()
 
 
 if __name__ == "__main__":
