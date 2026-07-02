@@ -2,3 +2,5 @@ pyTelegramBotAPI
 python-dotenv
 flask
 google-generativeai
+requests
+telethon
