@@ -357,12 +357,13 @@ def main():
 
     # Userbot alohida threadda
     t = Thread(target=run_userbot)
-    t.daemon = True
-    t.start()
-
-    bot.send_message(OWNER_ID, "✅ <b>Spy bot ishga tushdi!</b>", parse_mode="HTML")
-    print("✅ Bot ishga tushdi!")
-    bot.infinity_polling()
+    def run_userbot():
+    if not user_client:
+        print("Userbot o'chirilgan — SESSION_STRING yo'q")
+        return
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(start_userbot())
 
 
 if __name__ == "__main__":
