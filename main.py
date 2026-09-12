@@ -131,13 +131,11 @@ def on_start(message):
         "Bu bot sizning Telegram profilingizga ulanib, quyidagi imkoniyatlarni beradi:\n\n"
         "O'chirilgan xabarlar - kimdir xabar o'chirsa, siz ko'rasiz\n"
         "Tahrirlangan xabarlar - eski va yangi versiyasini ko'rasiz\n"
-        "O'chib ketuvchi media - bir marta ko'riladigan rasm/video saqlanadi\n"
-        "AI avtomatik javob - siz yo'q paytda sun'iy intellekt javob beradi\n\n"
+        "O'chib ketuvchi media - bir marta ko'riladigan rasm/video saqlanadi\n\n"
         "<b>Profilga ulash tartibi:</b>\n"
         "1. Telegram - Settings\n"
         "2. Telegram Business\n"
-        "3. Chat Automation\n"
-        "4. Bot username kiriting: <code>@" + bot.get_me().username + "</code>\n\n"
+        "3. Bot username kiriting: <code>@" + bot.get_me().username + "</code>\n\n"
         "Ulangach bot avtomatik ishlaydi!",
         reply_markup=markup,
         parse_mode="HTML"
