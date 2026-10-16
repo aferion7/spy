@@ -293,7 +293,7 @@ if __name__ == "__main__":
     keep_alive()
     client.start()
     print("Bot ishlayapti!")
-   client.run_until_disconnected()
+    client.run_until_disconnected()
 import os
 import re
 from datetime import datetime
